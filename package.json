@@ -1,0 +1,36 @@
+{
+  "name": "d2ool",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "fetch:manifest": "tsx scripts/fetchManifest.ts",
+    "build:index": "tsx scripts/buildIndex.ts",
+    "cache:assets": "tsx scripts/cacheAssets.ts",
+    "refresh:data": "npm run fetch:manifest && npm run build:index && npm run cache:assets && npm run build:index",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^5.2.0",
+    "jsdom": "^25.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^7.3.3",
+    "vitest": "^4.1.7"
+  }
+}

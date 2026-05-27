@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.DS_Store
+data/raw/
+public/data/*
+!public/data/.gitkeep
+public/assets/destiny/*
+!public/assets/destiny/.gitkeep
+coverage/
