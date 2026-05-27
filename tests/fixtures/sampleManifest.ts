@@ -36,6 +36,10 @@ export function sampleDefinitions(): {
             "20": {
               statHash: 20,
               value: 72
+            },
+            "4284893193": {
+              statHash: 4284893193,
+              value: 140
             }
           }
         },
@@ -155,6 +159,12 @@ export function sampleDefinitions(): {
         hash: 20,
         displayProperties: {
           name: "Impact"
+        }
+      },
+      "4284893193": {
+        hash: 4284893193,
+        displayProperties: {
+          name: "Rounds Per Minute"
         }
       }
     },

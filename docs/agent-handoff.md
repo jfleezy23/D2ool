@@ -36,6 +36,40 @@ Debug route:
 http://127.0.0.1:5173/debug/data-health
 ```
 
+## Brother / Claude Setup
+
+Repository:
+
+```text
+https://github.com/jfleezy23/D2ool
+```
+
+Fresh setup:
+
+```bash
+git clone https://github.com/jfleezy23/D2ool.git
+cd D2ool
+cp .env.example .env
+```
+
+Put the Bungie API key in `.env` only:
+
+```bash
+BUNGIE_API_KEY=your_key_here
+```
+
+Then run:
+
+```bash
+npm install
+npm run refresh:data
+npm run test
+npm run build
+npm run dev
+```
+
+Normal usage is offline after `npm run refresh:data`. Refreshing the manifest or image cache is the only app-specific workflow that should need the Bungie API key and network access.
+
 ## Secrets
 
 The Bungie API key belongs only in local `.env`:
@@ -99,10 +133,10 @@ For UI work, also run the dev server and inspect desktop and mobile layout with 
 
 ## Good Next Tasks
 
+- Keep the D2Foundry-like workbench filters understandable for a newer developer: archetype/weapon type, RPM or frame, element, ammo, column-specific perks, and trait columns should stay data-driven from generated app data.
 - Split generated weapon data into list records and detail records for faster initial load.
 - Improve socket label inference for ambiguous columns.
 - Investigate top unresolved plug hashes shown in `/debug/data-health`.
 - Add virtualization to the weapon list.
 - Improve source/craftable/enhanceable detection from observed manifest fields.
 - Add perk stat effect display.
-

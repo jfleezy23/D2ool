@@ -1,4 +1,4 @@
-import type { Weapon } from "../types";
+import type { FoundryColumnKey, Weapon } from "../types";
 
 export type ColumnPerkFilter = {
   socketIndex: number;
@@ -12,11 +12,13 @@ export type WeaponFilters = {
   damageType?: string;
   rarity?: string;
   source?: string;
+  rpm?: number;
   craftable?: boolean;
   enhanceable?: boolean;
   adept?: boolean;
   selectedPerkNames?: string[];
   columnPerkFilters?: ColumnPerkFilter[];
+  foundryColumnFilters?: Partial<Record<FoundryColumnKey, string>>;
 };
 
 export type WeaponSort =
@@ -26,6 +28,18 @@ export type WeaponSort =
   | "damageType"
   | "ammoType"
   | "source";
+
+export type WorkbenchOptions = {
+  rpmOptions: number[];
+  columnOptions: Record<FoundryColumnKey, string[]>;
+};
+
+export const foundryColumnLabels: Record<FoundryColumnKey, string> = {
+  col1: "Column 1",
+  col2: "Column 2",
+  trait3: "Trait 3",
+  trait4: "Trait 4"
+};
 
 function normalize(value: string | undefined): string {
   return value?.trim().toLocaleLowerCase() ?? "";
@@ -92,10 +106,74 @@ export function weaponHasSelectedPerkInSpecificColumn(
   });
 }
 
+export function weaponHasSelectedPerkInFoundryColumn(
+  weapon: Weapon,
+  columnKey: FoundryColumnKey,
+  perkName: string
+): boolean {
+  const wanted = normalize(perkName);
+  if (!wanted) {
+    return true;
+  }
+
+  return weapon.perkColumns.some((column) => {
+    return (
+      column.foundryColumnKey === columnKey &&
+      column.perks.some((perk) => normalize(perk.name) === wanted)
+    );
+  });
+}
+
+export function collectWorkbenchOptions(
+  weapons: Weapon[],
+  weaponType?: string
+): WorkbenchOptions {
+  const scopedWeapons = weaponType
+    ? weapons.filter((weapon) => weapon.weaponType === weaponType)
+    : weapons;
+  const rpmOptions = new Set<number>();
+  const columnOptions: Record<FoundryColumnKey, Set<string>> = {
+    col1: new Set<string>(),
+    col2: new Set<string>(),
+    trait3: new Set<string>(),
+    trait4: new Set<string>()
+  };
+
+  for (const weapon of scopedWeapons) {
+    if (weapon.rpm !== undefined) {
+      rpmOptions.add(weapon.rpm);
+    }
+
+    for (const column of weapon.perkColumns) {
+      if (!column.foundryColumnKey) {
+        continue;
+      }
+
+      for (const perk of column.perks) {
+        columnOptions[column.foundryColumnKey].add(perk.name);
+      }
+    }
+  }
+
+  return {
+    rpmOptions: Array.from(rpmOptions).sort((left, right) => left - right),
+    columnOptions: {
+      col1: Array.from(columnOptions.col1).sort(),
+      col2: Array.from(columnOptions.col2).sort(),
+      trait3: Array.from(columnOptions.trait3).sort(),
+      trait4: Array.from(columnOptions.trait4).sort()
+    }
+  };
+}
+
 export function filterWeapons(weapons: Weapon[], filters: WeaponFilters): Weapon[] {
   const query = normalize(filters.query);
   const selectedPerkNames = filters.selectedPerkNames ?? [];
   const columnPerkFilters = filters.columnPerkFilters ?? [];
+  const foundryColumnFilters = Object.entries(filters.foundryColumnFilters ?? {}) as [
+    FoundryColumnKey,
+    string
+  ][];
 
   return weapons.filter((weapon) => {
     if (!weaponContainsQuery(weapon, query)) {
@@ -122,6 +200,10 @@ export function filterWeapons(weapons: Weapon[], filters: WeaponFilters): Weapon
       return false;
     }
 
+    if (filters.rpm !== undefined && weapon.rpm !== filters.rpm) {
+      return false;
+    }
+
     if (filters.craftable !== undefined && weapon.craftable !== filters.craftable) {
       return false;
     }
@@ -140,6 +222,8 @@ export function filterWeapons(weapons: Weapon[], filters: WeaponFilters): Weapon
 
     return columnPerkFilters.every((columnFilter) =>
       weaponHasSelectedPerkInSpecificColumn(weapon, columnFilter)
+    ) && foundryColumnFilters.every(([columnKey, perkName]) =>
+      weaponHasSelectedPerkInFoundryColumn(weapon, columnKey, perkName)
     );
   });
 }
@@ -157,4 +241,3 @@ export function sortWeapons(weapons: Weapon[], sort: WeaponSort): Weapon[] {
     return left.localeCompare(right);
   });
 }
-

@@ -17,9 +17,17 @@ export function isPerkColumn(value: unknown): value is PerkColumn {
     return false;
   }
 
+  const foundryColumnKey =
+    value.foundryColumnKey === undefined ||
+    value.foundryColumnKey === "col1" ||
+    value.foundryColumnKey === "col2" ||
+    value.foundryColumnKey === "trait3" ||
+    value.foundryColumnKey === "trait4";
+
   return (
     typeof value.socketIndex === "number" &&
     typeof value.label === "string" &&
+    foundryColumnKey &&
     (value.labelConfidence === "high" ||
       value.labelConfidence === "medium" ||
       value.labelConfidence === "low") &&
@@ -35,6 +43,7 @@ export function isWeapon(value: unknown): value is Weapon {
   return (
     typeof value.hash === "number" &&
     typeof value.name === "string" &&
+    (value.rpm === undefined || typeof value.rpm === "number") &&
     isRecord(value.stats) &&
     value.perkColumns.every(isPerkColumn)
   );
@@ -77,4 +86,3 @@ export function validateSavedRolls(records: unknown): SavedRoll[] {
 
   return records;
 }
-

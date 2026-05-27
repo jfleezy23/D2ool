@@ -1,6 +1,6 @@
 # Data Quality Report
 
-Generated at: 2026-05-27T03:01:54.395Z
+Generated at: 2026-05-27T16:38:17.246Z
 
 Manifest version: 243523.26.04.28.2000-3-bnet.64859
 Locale: en
@@ -55,6 +55,8 @@ None recorded.
 - Plug options are resolved from reusable plug items, randomized plug sets, and reusable plug sets.
 - Socket column labels are inferred from plug category identifiers and plug display metadata.
 - Ambiguous socket categories are preserved for debug review instead of receiving high-confidence labels.
+- Foundry-style workbench keys are generated from resolved socket columns: `col1`, `col2`, `trait3`, and `trait4`.
+- RPM is extracted from stat hash `4284893193` when present.
 
 ## Extraction Limitations
 
@@ -62,6 +64,8 @@ None recorded.
 - Perk stat effects are not modeled yet.
 - Source labeling depends on collectible fields when available.
 - Some resolved plugs may be non-trait sockets such as mods or masterworks.
+- Old weapons may still show low-confidence labels like `Socket 1` for sight-like columns. These still receive a workbench key when they are part of the roll column sequence.
+- Compare mode currently shows base display stats side by side. Perk stat effects are not modeled yet.
 
 ## Suspicious Records
 

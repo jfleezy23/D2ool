@@ -1,8 +1,10 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import {
   Check,
+  Columns3,
   Database,
   Download,
+  GitCompare,
   Save,
   Search,
   SlidersHorizontal,
@@ -10,10 +12,18 @@ import {
   Upload,
   X
 } from "lucide-react";
-import type { DataHealth, Perk, SavedRoll, Weapon } from "./types";
+import type { DataHealth, FoundryColumnKey, Perk, SavedRoll, Weapon } from "./types";
 import { loadGeneratedData, type AppData } from "./lib/data";
 import {
+  buildCompareStatRows,
+  createCompareRoll,
+  savedRollToCompareRoll,
+  type CompareRoll
+} from "./lib/compare";
+import {
+  collectWorkbenchOptions,
   filterWeapons,
+  foundryColumnLabels,
   sortWeapons,
   type ColumnPerkFilter,
   type WeaponSort
@@ -43,6 +53,7 @@ type FilterState = {
   damageType: string;
   rarity: string;
   source: string;
+  rpm: string;
   craftable: boolean;
   enhanceable: boolean;
   adept: boolean;
@@ -55,9 +66,18 @@ const initialFilters: FilterState = {
   damageType: "",
   rarity: "",
   source: "",
+  rpm: "",
   craftable: false,
   enhanceable: false,
   adept: false
+};
+
+const foundryColumnOrder: FoundryColumnKey[] = ["col1", "col2", "trait3", "trait4"];
+const emptyColumnOptions: Record<FoundryColumnKey, string[]> = {
+  col1: [],
+  col2: [],
+  trait3: [],
+  trait4: []
 };
 
 function safeAssetPath(path: string | undefined): string | undefined {
@@ -85,6 +105,9 @@ export function App() {
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [selectedPerks, setSelectedPerks] = useState<string[]>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnPerkFilter[]>([]);
+  const [foundryColumnFilters, setFoundryColumnFilters] = useState<
+    Partial<Record<FoundryColumnKey, string>>
+  >({});
   const [perkDraft, setPerkDraft] = useState("");
   const [columnPerkDraft, setColumnPerkDraft] = useState("");
   const [columnIndexDraft, setColumnIndexDraft] = useState("3");
@@ -93,6 +116,7 @@ export function App() {
   const [selectedRollPerks, setSelectedRollPerks] = useState<Record<number, Perk>>({});
   const [selectedPerkDetail, setSelectedPerkDetail] = useState<Perk | null>(null);
   const [savedRolls, setSavedRolls] = useState<SavedRoll[]>([]);
+  const [compareRolls, setCompareRolls] = useState<CompareRoll[]>([]);
   const [notes, setNotes] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
 
@@ -132,15 +156,17 @@ export function App() {
         damageType: filters.damageType || undefined,
         rarity: filters.rarity || undefined,
         source: filters.source || undefined,
+        rpm: filters.rpm ? Number(filters.rpm) : undefined,
         craftable: filters.craftable ? true : undefined,
         enhanceable: filters.enhanceable ? true : undefined,
         adept: filters.adept ? true : undefined,
         selectedPerkNames: selectedPerks,
-        columnPerkFilters: columnFilters
+        columnPerkFilters: columnFilters,
+        foundryColumnFilters
       }),
       sort
     );
-  }, [columnFilters, data, filters, selectedPerks, sort]);
+  }, [columnFilters, data, filters, foundryColumnFilters, selectedPerks, sort]);
 
   const selectedWeapon = useMemo(() => {
     if (!data) {
@@ -148,16 +174,44 @@ export function App() {
     }
 
     return (
-      data.weapons.find((weapon) => weapon.hash === selectedWeaponHash) ??
+      filteredWeapons.find((weapon) => weapon.hash === selectedWeaponHash) ??
       filteredWeapons[0]
     );
   }, [data, filteredWeapons, selectedWeaponHash]);
+
+  const workbenchOptions = useMemo(() => {
+    if (!data) {
+      return { rpmOptions: [], columnOptions: emptyColumnOptions };
+    }
+
+    return collectWorkbenchOptions(data.weapons, filters.weaponType || undefined);
+  }, [data, filters.weaponType]);
+
+  const foundryFilterConflicts = useMemo(() => {
+    return Object.fromEntries(
+      foundryColumnOrder.map((columnKey) => {
+        const value = foundryColumnFilters[columnKey]?.trim();
+        const options = workbenchOptions.columnOptions[columnKey];
+
+        return [columnKey, Boolean(value && !options.includes(value))];
+      })
+    ) as Record<FoundryColumnKey, boolean>;
+  }, [foundryColumnFilters, workbenchOptions]);
 
   useEffect(() => {
     setSelectedRollPerks({});
     setSelectedPerkDetail(null);
     setNotes("");
   }, [selectedWeapon?.hash]);
+
+  useEffect(() => {
+    if (
+      filters.rpm &&
+      !workbenchOptions.rpmOptions.includes(Number(filters.rpm))
+    ) {
+      updateFilter("rpm", "");
+    }
+  }, [filters.rpm, workbenchOptions.rpmOptions]);
 
   if (loadError) {
     return <MissingData error={loadError} />;
@@ -183,6 +237,22 @@ export function App() {
     setFilters((current) => ({ ...current, [key]: value }));
   }
 
+  function updateFoundryColumnFilter(columnKey: FoundryColumnKey, value: string) {
+    setFoundryColumnFilters((current) => ({
+      ...current,
+      [columnKey]: value
+    }));
+  }
+
+  function clearAllFilters() {
+    setFilters(initialFilters);
+    setSelectedPerks([]);
+    setColumnFilters([]);
+    setFoundryColumnFilters({});
+    setPerkDraft("");
+    setColumnPerkDraft("");
+  }
+
   function addPerkFilter() {
     const value = perkDraft.trim();
     if (!value || selectedPerks.includes(value)) {
@@ -201,6 +271,24 @@ export function App() {
 
     setColumnFilters((current) => [...current, { socketIndex, perkName }]);
     setColumnPerkDraft("");
+  }
+
+  function addCurrentRollToCompare() {
+    if (!selectedWeapon) {
+      return;
+    }
+
+    setCompareRolls((current) => [
+      ...current,
+      createCompareRoll(selectedWeapon, selectedRollPerks, notes)
+    ]);
+  }
+
+  function addSavedRollToCompare(roll: SavedRoll) {
+    setCompareRolls((current) => [
+      ...current,
+      savedRollToCompareRoll(roll, selectedWeapon)
+    ]);
   }
 
   function saveCurrentRoll() {
@@ -292,7 +380,7 @@ export function App() {
 
         <div className="field-grid">
           <FilterSelect
-            label="Weapon type"
+            label="Archetype"
             value={filters.weaponType}
             values={filterOptions.weaponTypes}
             onChange={(value) => updateFilter("weaponType", value)}
@@ -323,6 +411,40 @@ export function App() {
           values={filterOptions.sources}
           onChange={(value) => updateFilter("source", value)}
         />
+
+        <div className="filter-section workbench-section">
+          <div className="section-title">
+            <Columns3 size={16} aria-hidden="true" />
+            <span>Foundry workbench</span>
+          </div>
+          <FilterSelect
+            label="Frame / RPM"
+            value={filters.rpm}
+            values={workbenchOptions.rpmOptions.map(String)}
+            onChange={(value) => updateFilter("rpm", value)}
+            disabled={!filters.weaponType || workbenchOptions.rpmOptions.length === 0}
+            emptyLabel={filters.weaponType ? "Any" : "Pick archetype first"}
+          />
+          <div className="workbench-grid">
+            {foundryColumnOrder.map((columnKey) => (
+              <FoundryColumnInput
+                key={columnKey}
+                columnKey={columnKey}
+                value={foundryColumnFilters[columnKey] ?? ""}
+                options={workbenchOptions.columnOptions[columnKey]}
+                conflict={foundryFilterConflicts[columnKey]}
+                onChange={(value) => updateFoundryColumnFilter(columnKey, value)}
+              />
+            ))}
+          </div>
+          {Object.values(foundryFilterConflicts).some(Boolean) ? (
+            <p className="field-warning">One selected perk is not valid for this archetype.</p>
+          ) : null}
+          <button type="button" className="quiet-button" onClick={clearAllFilters}>
+            <X size={15} />
+            Clear all
+          </button>
+        </div>
 
         <div className="toggle-stack">
           <Toggle
@@ -423,6 +545,13 @@ export function App() {
             <option key={perkName} value={perkName} />
           ))}
         </datalist>
+        {foundryColumnOrder.map((columnKey) => (
+          <datalist key={columnKey} id={`foundry-${columnKey}-options`}>
+            {workbenchOptions.columnOptions[columnKey].map((perkName) => (
+              <option key={perkName} value={perkName} />
+            ))}
+          </datalist>
+        ))}
       </aside>
 
       <section className="results-pane">
@@ -488,10 +617,17 @@ export function App() {
             notes={notes}
             onNotesChange={setNotes}
             onSaveRoll={saveCurrentRoll}
+            onAddCurrentRollToCompare={addCurrentRollToCompare}
             savedRolls={selectedSavedRolls}
+            onAddSavedRollToCompare={addSavedRollToCompare}
             onDeleteRoll={(id) =>
               setSavedRolls((current) => current.filter((roll) => roll.id !== id))
             }
+            compareRolls={compareRolls}
+            onRemoveCompareRoll={(id) =>
+              setCompareRolls((current) => current.filter((roll) => roll.id !== id))
+            }
+            onClearCompareRolls={() => setCompareRolls([])}
           />
         ) : (
           <div className="empty-state">
@@ -507,24 +643,58 @@ function FilterSelect({
   label,
   value,
   values,
-  onChange
+  onChange,
+  disabled = false,
+  emptyLabel = "Any"
 }: {
   label: string;
   value: string;
   values: string[];
   onChange: (value: string) => void;
+  disabled?: boolean;
+  emptyLabel?: string;
 }) {
   return (
     <label className="field">
       <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
-        <option value="">Any</option>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+      >
+        <option value="">{emptyLabel}</option>
         {values.map((option) => (
           <option key={option} value={option}>
             {option}
           </option>
         ))}
       </select>
+    </label>
+  );
+}
+
+function FoundryColumnInput({
+  columnKey,
+  value,
+  options,
+  conflict,
+  onChange
+}: {
+  columnKey: FoundryColumnKey;
+  value: string;
+  options: string[];
+  conflict: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className={`field workbench-field ${conflict ? "conflict" : ""}`}>
+      <span>{foundryColumnLabels[columnKey]}</span>
+      <input
+        list={`foundry-${columnKey}-options`}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Any perk"
+      />
     </label>
   );
 }
@@ -598,6 +768,7 @@ function WeaponCard({
         </span>
         <small>
           {weapon.damageType ?? "damage unknown"} · {weapon.rarity ?? "rarity unknown"}
+          {weapon.rpm ? ` · ${weapon.rpm} RPM` : ""}
         </small>
         {previewPerks ? <em>{previewPerks}</em> : null}
       </span>
@@ -621,8 +792,13 @@ function WeaponDetail({
   notes,
   onNotesChange,
   onSaveRoll,
+  onAddCurrentRollToCompare,
   savedRolls,
-  onDeleteRoll
+  onAddSavedRollToCompare,
+  onDeleteRoll,
+  compareRolls,
+  onRemoveCompareRoll,
+  onClearCompareRolls
 }: {
   weapon: Weapon;
   selectedRollPerks: Record<number, Perk>;
@@ -631,8 +807,13 @@ function WeaponDetail({
   notes: string;
   onNotesChange: (value: string) => void;
   onSaveRoll: () => void;
+  onAddCurrentRollToCompare: () => void;
   savedRolls: SavedRoll[];
+  onAddSavedRollToCompare: (roll: SavedRoll) => void;
   onDeleteRoll: (id: string) => void;
+  compareRolls: CompareRoll[];
+  onRemoveCompareRoll: (id: string) => void;
+  onClearCompareRolls: () => void;
 }) {
   const screenshotPath = safeAssetPath(weapon.screenshotPath);
   const iconPath = safeAssetPath(weapon.iconPath);
@@ -651,6 +832,7 @@ function WeaponDetail({
             <p>
               {weapon.weaponType ?? "other"} · {weapon.ammoType ?? "ammo unknown"} ·{" "}
               {weapon.damageType ?? "damage unknown"}
+              {weapon.rpm ? ` · ${weapon.rpm} RPM` : ""}
             </p>
           </div>
         </div>
@@ -716,10 +898,20 @@ function WeaponDetail({
           onChange={(event) => onNotesChange(event.target.value)}
           placeholder="Notes"
         />
-        <button type="button" className="primary-button" onClick={onSaveRoll}>
-          <Save size={16} />
-          Save roll
-        </button>
+        <div className="roll-actions">
+          <button type="button" className="primary-button" onClick={onSaveRoll}>
+            <Save size={16} />
+            Save roll
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onAddCurrentRollToCompare}
+          >
+            <GitCompare size={16} />
+            Compare
+          </button>
+        </div>
       </section>
 
       {selectedPerkDetail ? (
@@ -741,14 +933,109 @@ function WeaponDetail({
               <p>{roll.selectedPerks.map((perk) => perk.perkName).join(" · ")}</p>
               {roll.notes ? <small>{roll.notes}</small> : null}
             </div>
-            <button type="button" className="icon-button" onClick={() => onDeleteRoll(roll.id)} title="Delete roll">
-              <Trash2 size={16} />
-            </button>
+            <div className="saved-roll-actions">
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => onAddSavedRollToCompare(roll)}
+                title="Add saved roll to compare"
+              >
+                <GitCompare size={16} />
+              </button>
+              <button type="button" className="icon-button" onClick={() => onDeleteRoll(roll.id)} title="Delete roll">
+                <Trash2 size={16} />
+              </button>
+            </div>
           </article>
         ))}
         {savedRolls.length === 0 ? <p className="muted">No saved rolls for this weapon.</p> : null}
       </section>
+
+      <CompareTray
+        rolls={compareRolls}
+        onRemoveRoll={onRemoveCompareRoll}
+        onClear={onClearCompareRolls}
+      />
     </div>
+  );
+}
+
+function CompareTray({
+  rolls,
+  onRemoveRoll,
+  onClear
+}: {
+  rolls: CompareRoll[];
+  onRemoveRoll: (id: string) => void;
+  onClear: () => void;
+}) {
+  const statRows = buildCompareStatRows(rolls);
+
+  return (
+    <section className="compare-tray">
+      <header>
+        <div>
+          <h3>Compare</h3>
+          <p>{rolls.length} rolls staged</p>
+        </div>
+        {rolls.length > 0 ? (
+          <button type="button" className="quiet-button compact" onClick={onClear}>
+            Clear
+          </button>
+        ) : null}
+      </header>
+
+      {rolls.length === 0 ? (
+        <p className="muted">Add current or saved rolls to compare base stats side by side.</p>
+      ) : (
+        <>
+          <div className="compare-rolls">
+            {rolls.map((roll) => (
+              <article key={roll.id}>
+                <button
+                  type="button"
+                  className="icon-button"
+                  onClick={() => onRemoveRoll(roll.id)}
+                  title="Remove from compare"
+                >
+                  <X size={15} />
+                </button>
+                <strong>{roll.weaponName}</strong>
+                <span>{roll.selectedPerks.map((perk) => perk.perkName).join(" · ") || "No perks selected"}</span>
+              </article>
+            ))}
+          </div>
+          {statRows.length > 0 ? (
+            <div className="compare-table">
+              <div className="compare-row header">
+                <span>Stat</span>
+                {rolls.map((roll, index) => (
+                  <strong key={roll.id}>{index === 0 ? "Base" : `Roll ${index + 1}`}</strong>
+                ))}
+              </div>
+              {statRows.map((row) => (
+                <div className="compare-row" key={row.name}>
+                  <span>{row.name}</span>
+                  {row.values.map((value, index) => (
+                    <strong key={`${row.name}-${rolls[index]?.id}`}>
+                      {value}
+                      {index > 0 && row.deltas[index] !== 0 ? (
+                        <em className={row.deltas[index] > 0 ? "positive" : "negative"}>
+                          {row.deltas[index] > 0 ? "+" : ""}
+                          {row.deltas[index]}
+                        </em>
+                      ) : null}
+                    </strong>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">No display stats available for compared rolls.</p>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -824,7 +1111,7 @@ function DataHealthPage({ dataHealth }: { dataHealth: DataHealth }) {
               {mapping.socketColumns
                 .map(
                   (column) =>
-                    `${column.socketIndex}:${column.label}[${column.sourcePlugSetHashes.join(",") || "direct"}]`
+                    `${column.socketIndex}:${column.label}${column.foundryColumnKey ? `/${column.foundryColumnKey}` : ""}[${column.sourcePlugSetHashes.join(",") || "direct"}]`
                 )
                 .join(" · ")}
             </span>

@@ -73,6 +73,34 @@ describe("buildGeneratedData", () => {
     expect(weapon?.perkColumns.find((column) => column.socketIndex === 3)?.perks).toHaveLength(2);
   });
 
+  it("assigns generated Foundry-style column keys without including intrinsic sockets", () => {
+    const bundle = buildGeneratedData(sampleDefinitions());
+    const weapon = bundle.weapons.find((record) => record.hash === 100);
+
+    expect(
+      weapon?.perkColumns.map((column) => [column.socketIndex, column.foundryColumnKey])
+    ).toEqual([
+      [0, undefined],
+      [1, "col1"],
+      [2, "col2"],
+      [3, "trait3"],
+      [4, "trait4"]
+    ]);
+  });
+
+  it("extracts RPM and generated workbench filter options", () => {
+    const bundle = buildGeneratedData(sampleDefinitions());
+    const weapon = bundle.weapons.find((record) => record.hash === 100);
+
+    expect(weapon?.rpm).toBe(140);
+    expect(bundle.filterOptions.rpmOptionsByWeaponType["hand cannon"]).toEqual([140]);
+    expect(bundle.filterOptions.perkNamesByFoundryColumn.col1).toEqual([
+      "Arrowhead Brake",
+      "Smallbore"
+    ]);
+    expect(bundle.filterOptions.perkNamesByFoundryColumn.trait4).toContain("Opening Shot");
+  });
+
   it("excludes cosmetic shader and memento sockets from roll columns", () => {
     const bundle = buildGeneratedData(sampleDefinitions());
     const weapon = bundle.weapons.find((record) => record.hash === 100);

@@ -141,6 +141,12 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(217, 180, 90, 0.14);
 }
 
+select:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .input-with-icon {
   position: relative;
 }
@@ -167,6 +173,32 @@ textarea:focus {
 .filter-section,
 .toggle-stack {
   margin-top: 1rem;
+}
+
+.workbench-section {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(217, 180, 90, 0.2);
+  border-radius: 8px;
+  background: rgba(217, 180, 90, 0.055);
+}
+
+.workbench-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.58rem;
+}
+
+.workbench-field.conflict input {
+  border-color: rgba(239, 118, 122, 0.74);
+  box-shadow: 0 0 0 3px rgba(239, 118, 122, 0.12);
+}
+
+.field-warning {
+  margin: 0;
+  color: #ffb5b7;
+  font-size: 0.78rem;
 }
 
 .toggle-stack {
@@ -213,6 +245,8 @@ textarea:focus {
 .inline-form button,
 .icon-button,
 .primary-button,
+.secondary-button,
+.quiet-button,
 .chip,
 .weapon-card,
 .perk-button {
@@ -232,11 +266,30 @@ textarea:focus {
 
 .inline-form button:hover,
 .icon-button:hover,
+.secondary-button:hover,
+.quiet-button:hover,
 .chip:hover,
 .weapon-card:hover,
 .perk-button:hover {
   border-color: rgba(217, 180, 90, 0.6);
   background: rgba(217, 180, 90, 0.1);
+}
+
+.quiet-button {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  min-height: 2.2rem;
+  padding: 0 0.65rem;
+  color: #dce6f4;
+}
+
+.quiet-button.compact {
+  min-height: 1.95rem;
+  padding: 0 0.55rem;
+  font-size: 0.78rem;
 }
 
 .chips {
@@ -540,6 +593,24 @@ textarea:focus {
   font-weight: 800;
 }
 
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.45rem;
+  padding: 0 0.8rem;
+  color: #dce6f4;
+  font-weight: 800;
+}
+
+.roll-actions,
+.saved-roll-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .perk-detail {
   display: grid;
   grid-template-columns: 3.25rem 1fr;
@@ -563,6 +634,91 @@ textarea:focus {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.045);
+}
+
+.compare-tray {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0 1rem;
+  padding: 0.8rem;
+  border: 1px solid rgba(217, 180, 90, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.compare-tray header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.compare-tray h3 {
+  margin: 0;
+}
+
+.compare-tray p {
+  margin: 0.22rem 0 0;
+  color: #9aa7b8;
+}
+
+.compare-rolls {
+  display: grid;
+  gap: 0.48rem;
+}
+
+.compare-rolls article {
+  display: grid;
+  grid-template-columns: 2.35rem minmax(0, 1fr);
+  gap: 0.45rem 0.6rem;
+  align-items: center;
+  padding: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.compare-rolls article span {
+  grid-column: 2;
+  color: #9aa7b8;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.compare-table {
+  display: grid;
+  gap: 0.35rem;
+  overflow-x: auto;
+}
+
+.compare-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) repeat(auto-fit, minmax(4.5rem, 0.5fr));
+  gap: 0.45rem;
+  min-width: 18rem;
+  align-items: center;
+  padding: 0.4rem 0;
+  color: #cbd4e1;
+  font-size: 0.8rem;
+}
+
+.compare-row.header {
+  color: #eff2f7;
+  font-weight: 800;
+}
+
+.compare-row em {
+  display: inline-block;
+  margin-left: 0.28rem;
+  font-style: normal;
+}
+
+.compare-row em.positive {
+  color: #8ce1c8;
+}
+
+.compare-row em.negative {
+  color: #ffb5b7;
 }
 
 .empty-state,
@@ -725,6 +881,7 @@ textarea:focus {
   }
 
   .field-grid,
+  .workbench-grid,
   .toggle-stack,
   .debug-columns {
     grid-template-columns: 1fr;

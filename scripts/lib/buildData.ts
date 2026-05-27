@@ -1,6 +1,7 @@
 import type {
   DataHealth,
   FilterOptions,
+  FoundryColumnKey,
   GeneratedDataBundle,
   LabelConfidence,
   ManifestMeta,
@@ -15,6 +16,8 @@ import { localizeAssetPath, normalizeBungieAssetPath } from "./assets";
 import type { DefinitionRecord, LatestManifestMetadata } from "./manifestLoader";
 
 const weaponItemType = 3;
+const rpmStatHash = "4284893193";
+const foundryColumnKeys: FoundryColumnKey[] = ["col1", "col2", "trait3", "trait4"];
 
 const weaponTypeNames = new Map(
   [
@@ -209,6 +212,14 @@ function resolveStats(
   return stats;
 }
 
+function resolveStatValueByHash(
+  item: Record<string, unknown>,
+  statHash: string
+): number | undefined {
+  const stat = getRecord(getRecord(getRecord(item.stats)?.stats)?.[statHash]);
+  return stat ? getNumber(stat, "value") : undefined;
+}
+
 function recordCount(map: Map<number, number>, key: number): void {
   map.set(key, (map.get(key) ?? 0) + 1);
 }
@@ -243,6 +254,8 @@ function inferColumnLabel(
   traitOrdinal: number
 ): { label: string; confidence: LabelConfidence; traitLike: boolean } {
   const socketCategoryHash = getNumber(socketEntry, "socketCategoryHash");
+  const categories = perks.map((perk) => normalizeText(perk.plugCategoryIdentifier));
+  const itemTypes = perks.map((perk) => normalizeText(perk.itemTypeDisplayName));
   const signal = [
     ...perks.map((perk) => perk.plugCategoryIdentifier),
     ...perks.map((perk) => perk.itemTypeDisplayName),
@@ -252,16 +265,29 @@ function inferColumnLabel(
     .join(" ")
     .toLocaleLowerCase();
 
-  if (signal.includes("intrinsic") || signal.includes("frame")) {
+  if (
+    itemTypes.some((itemType) => itemType.includes("trait")) ||
+    categories.some(
+      (category) =>
+        category === "frames" ||
+        category.includes("random_perks") ||
+        category.includes("randomized")
+    )
+  ) {
+    return {
+      label: traitOrdinal <= 2 ? `Trait column ${traitOrdinal}` : `Trait column ${traitOrdinal}`,
+      confidence: "medium",
+      traitLike: true
+    };
+  }
+
+  if (
+    categories.some((category) => category.includes("intrinsics")) ||
+    itemTypes.some((itemType) => itemType === "intrinsic") ||
+    signal.includes("intrinsic") ||
+    signal.includes("frame")
+  ) {
     return { label: "Intrinsic/frame", confidence: "medium", traitLike: false };
-  }
-
-  if (signal.includes("barrel")) {
-    return { label: "Barrel", confidence: "high", traitLike: false };
-  }
-
-  if (signal.includes("magazine") || signal.includes("battery")) {
-    return { label: "Magazine/battery", confidence: "high", traitLike: false };
   }
 
   if (signal.includes("origin")) {
@@ -272,16 +298,16 @@ function inferColumnLabel(
     return { label: "Masterwork", confidence: "high", traitLike: false };
   }
 
-  if (signal.includes("weapon mod") || signal.includes("mods.weapons")) {
+  if (signal.includes("weapon mod") || signal.includes("weapon.mod") || signal.includes("mods.weapons")) {
     return { label: "Weapon mod", confidence: "medium", traitLike: false };
   }
 
-  if (signal.includes("trait") || signal.includes("perk")) {
-    return {
-      label: traitOrdinal <= 2 ? `Trait column ${traitOrdinal}` : `Trait column ${traitOrdinal}`,
-      confidence: "medium",
-      traitLike: true
-    };
+  if (signal.includes("barrel")) {
+    return { label: "Barrel", confidence: "high", traitLike: false };
+  }
+
+  if (signal.includes("magazine") || signal.includes("battery")) {
+    return { label: "Magazine/battery", confidence: "high", traitLike: false };
   }
 
   return {
@@ -364,6 +390,76 @@ function dedupePerksByDisplay(perks: Perk[]): Perk[] {
   }
 
   return deduped;
+}
+
+function isTraitColumn(column: PerkColumn): boolean {
+  const label = normalizeText(column.label);
+  const categories = column.perks.map((perk) => normalizeText(perk.plugCategoryIdentifier));
+  const itemTypes = column.perks.map((perk) => normalizeText(perk.itemTypeDisplayName));
+  const signal = [
+    label,
+    ...column.perks.map((perk) => perk.plugCategoryIdentifier),
+    ...column.perks.map((perk) => perk.itemTypeDisplayName)
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLocaleLowerCase();
+
+  return (
+    label.startsWith("trait column") ||
+    itemTypes.some((itemType) => itemType.includes("trait")) ||
+    categories.some((category) => category === "frames") ||
+    signal.includes("random_perks") ||
+    signal.includes("trait")
+  );
+}
+
+function isFoundryRollColumn(column: PerkColumn): boolean {
+  const label = normalizeText(column.label);
+  if (isTraitColumn(column)) {
+    return true;
+  }
+
+  if (
+    label === "intrinsic/frame" ||
+    label === "origin trait" ||
+    label === "masterwork" ||
+    label === "weapon mod"
+  ) {
+    return false;
+  }
+
+  const signal = [
+    ...column.perks.map((perk) => perk.plugCategoryIdentifier),
+    ...column.perks.map((perk) => perk.itemTypeDisplayName)
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLocaleLowerCase();
+
+  return !(
+    signal.includes("intrinsics") ||
+    signal.includes("origin") ||
+    signal.includes("masterwork") ||
+    signal.includes("mods.weapons")
+  );
+}
+
+function applyFoundryColumnKeys(perkColumns: PerkColumn[]): PerkColumn[] {
+  let rollOrdinal = 0;
+  let traitOrdinal = 0;
+
+  return perkColumns.map((column) => {
+    if (!isFoundryRollColumn(column)) {
+      return column;
+    }
+
+    const key: FoundryColumnKey | undefined = isTraitColumn(column)
+      ? (["trait3", "trait4"] as FoundryColumnKey[])[traitOrdinal++]
+      : (["col1", "col2"] as FoundryColumnKey[])[rollOrdinal++];
+
+    return key ? { ...column, foundryColumnKey: key } : column;
+  });
 }
 
 function resolveSocketColumn(
@@ -470,6 +566,10 @@ function collectFilterOptions(weapons: Weapon[], perks: Perk[]): FilterOptions {
     damageTypes: new Set<string>(),
     rarities: new Set<string>(),
     sources: new Set<string>(),
+    rpmOptionsByWeaponType: new Map<string, Set<number>>(),
+    perkNamesByFoundryColumn: new Map<FoundryColumnKey, Set<string>>(
+      foundryColumnKeys.map((key) => [key, new Set<string>()])
+    ),
     perkNames: new Set<string>()
   };
 
@@ -479,6 +579,23 @@ function collectFilterOptions(weapons: Weapon[], perks: Perk[]): FilterOptions {
     if (weapon.damageType) values.damageTypes.add(weapon.damageType);
     if (weapon.rarity) values.rarities.add(weapon.rarity);
     if (weapon.source) values.sources.add(weapon.source);
+    if (weapon.weaponType && weapon.rpm !== undefined) {
+      const rpmValues =
+        values.rpmOptionsByWeaponType.get(weapon.weaponType) ?? new Set<number>();
+      rpmValues.add(weapon.rpm);
+      values.rpmOptionsByWeaponType.set(weapon.weaponType, rpmValues);
+    }
+
+    for (const column of weapon.perkColumns) {
+      if (!column.foundryColumnKey) {
+        continue;
+      }
+
+      const columnPerks = values.perkNamesByFoundryColumn.get(column.foundryColumnKey);
+      for (const perk of column.perks) {
+        columnPerks?.add(perk.name);
+      }
+    }
   }
 
   for (const perk of perks) {
@@ -491,6 +608,20 @@ function collectFilterOptions(weapons: Weapon[], perks: Perk[]): FilterOptions {
     damageTypes: Array.from(values.damageTypes).sort(),
     rarities: Array.from(values.rarities).sort(),
     sources: Array.from(values.sources).sort(),
+    rpmOptionsByWeaponType: Object.fromEntries(
+      Array.from(values.rpmOptionsByWeaponType.entries())
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([weaponType, rpmValues]) => [
+          weaponType,
+          Array.from(rpmValues).sort((left, right) => left - right)
+        ])
+    ),
+    perkNamesByFoundryColumn: Object.fromEntries(
+      foundryColumnKeys.map((key) => [
+        key,
+        Array.from(values.perkNamesByFoundryColumn.get(key) ?? []).sort()
+      ])
+    ) as Record<FoundryColumnKey, string[]>,
     perkNames: Array.from(values.perkNames).sort()
   };
 }
@@ -514,6 +645,7 @@ function buildWeaponPerkIndex(weapons: Weapon[]): WeaponPerkIndex {
       const columns = weapon.perkColumns.map((column) => ({
         socketIndex: column.socketIndex,
         label: column.label,
+        foundryColumnKey: column.foundryColumnKey,
         perkHashes: column.perks.map((perk) => perk.hash)
       }));
 
@@ -558,6 +690,7 @@ function buildSearchIndex(weapons: Weapon[]): SearchIndexEntry[] {
       damageType: weapon.damageType,
       rarity: weapon.rarity,
       source: weapon.source,
+      rpm: weapon.rpm,
       perkNames
     };
   });
@@ -587,7 +720,7 @@ function buildWeapon(
 
   let traitOrdinal = 0;
   const sourceMappings: DataHealth["sampleMappings"][number]["socketColumns"] = [];
-  const perkColumns = sockets
+  const resolvedPerkColumns = sockets
     .map((socketEntry, socketIndex) => {
       const dryLabel = inferColumnLabel(socketIndex, socketEntry, [], traitOrdinal + 1);
       if (dryLabel.traitLike) {
@@ -639,6 +772,7 @@ function buildWeapon(
       return resolution.column;
     })
     .filter((column): column is PerkColumn => column !== null);
+  const perkColumns = applyFoundryColumnKeys(resolvedPerkColumns);
 
   if (perkColumns.length === 0) {
     stats.weaponsWithZeroResolvedPerkColumns += 1;
@@ -662,6 +796,7 @@ function buildWeapon(
 
   const allPerks = perkColumns.flatMap((column) => column.perks);
   const intrinsic = perkColumns.find((column) => column.label === "Intrinsic/frame");
+  const resolvedStats = resolveStats(item, input.stats);
 
   return {
     hash,
@@ -675,12 +810,13 @@ function buildWeapon(
     ammoType: ammoTypes.get(getNumber(getRecord(item.equippingBlock) ?? {}, "ammoType") ?? -1),
     damageType: resolveDamageType(item, input.damageTypes),
     archetype: intrinsic?.perks[0]?.name,
+    rpm: resolveStatValueByHash(item, rpmStatHash),
     source: resolveSource(item, input.collectibles),
     craftable: getRecord(item.crafting) !== undefined || undefined,
     enhanceable:
       allPerks.some((perk) => normalizeText(perk.name).startsWith("enhanced ")) || undefined,
     adept: normalizeText(getString(display, "name")).includes("(adept)") || undefined,
-    stats: resolveStats(item, input.stats),
+    stats: resolvedStats,
     perkColumns,
     raw: {
       itemCategoryHashes: getNumberArray(item.itemCategoryHashes),
@@ -767,6 +903,9 @@ export function buildGeneratedData(input: BuildGeneratedDataInput): GeneratedDat
             weapon.perkColumns.find(
               (perkColumn) => perkColumn.socketIndex === column.socketIndex
             )?.labelConfidence ?? "low",
+          foundryColumnKey: weapon.perkColumns.find(
+            (perkColumn) => perkColumn.socketIndex === column.socketIndex
+          )?.foundryColumnKey,
           sourcePlugSetHashes: column.plugSetHashes ?? [],
           samplePerkHashes:
             weapon.perkColumns

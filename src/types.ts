@@ -1,4 +1,5 @@
 export type LabelConfidence = "high" | "medium" | "low";
+export type FoundryColumnKey = "col1" | "col2" | "trait3" | "trait4";
 
 export type Perk = {
   hash: number;
@@ -13,6 +14,7 @@ export type PerkColumn = {
   socketIndex: number;
   label: string;
   labelConfidence: LabelConfidence;
+  foundryColumnKey?: FoundryColumnKey;
   perks: Perk[];
 };
 
@@ -28,6 +30,7 @@ export type Weapon = {
   ammoType?: string;
   damageType?: string;
   archetype?: string;
+  rpm?: number;
   source?: string;
   craftable?: boolean;
   enhanceable?: boolean;
@@ -67,6 +70,7 @@ export type WeaponPerkIndex = Record<
     columns: {
       socketIndex: number;
       label: string;
+      foundryColumnKey?: FoundryColumnKey;
       perkHashes: number[];
     }[];
     allPerkHashes: number[];
@@ -79,6 +83,8 @@ export type FilterOptions = {
   damageTypes: string[];
   rarities: string[];
   sources: string[];
+  rpmOptionsByWeaponType: Record<string, number[]>;
+  perkNamesByFoundryColumn: Record<FoundryColumnKey, string[]>;
   perkNames: string[];
 };
 
@@ -90,6 +96,7 @@ export type SearchIndexEntry = {
   damageType?: string;
   rarity?: string;
   source?: string;
+  rpm?: number;
   perkNames: string[];
 };
 
@@ -121,6 +128,7 @@ export type DataHealth = ManifestMeta & {
       socketIndex: number;
       label: string;
       labelConfidence: LabelConfidence;
+      foundryColumnKey?: FoundryColumnKey;
       sourcePlugSetHashes: number[];
       samplePerkHashes: number[];
     }[];
@@ -136,4 +144,3 @@ export type GeneratedDataBundle = {
   manifestMeta: ManifestMeta;
   dataHealth: DataHealth;
 };
-

@@ -17,6 +17,7 @@ type Weapon = {
   ammoType?: string;
   damageType?: string;
   archetype?: string;
+  rpm?: number;
   source?: string;
   craftable?: boolean;
   enhanceable?: boolean;
@@ -44,6 +45,22 @@ type Perk = {
 };
 ```
 
+## Socket Columns
+
+```ts
+type FoundryColumnKey = "col1" | "col2" | "trait3" | "trait4";
+
+type PerkColumn = {
+  socketIndex: number;
+  label: string;
+  labelConfidence: "high" | "medium" | "low";
+  foundryColumnKey?: FoundryColumnKey;
+  perks: Perk[];
+};
+```
+
+`foundryColumnKey` is a generated convenience key for the D2Foundry-like workbench filters. It is intentionally absent for intrinsic, origin trait, masterwork, weapon mod, and unresolved/non-roll sockets.
+
 ## `weaponPerkIndex.json`
 
 Maps each weapon hash to socket-aware perk hashes.
@@ -56,6 +73,7 @@ type WeaponPerkIndex = Record<
     columns: {
       socketIndex: number;
       label: string;
+      foundryColumnKey?: FoundryColumnKey;
       perkHashes: number[];
     }[];
     allPerkHashes: number[];
@@ -74,6 +92,8 @@ type FilterOptions = {
   damageTypes: string[];
   rarities: string[];
   sources: string[];
+  rpmOptionsByWeaponType: Record<string, number[]>;
+  perkNamesByFoundryColumn: Record<FoundryColumnKey, string[]>;
   perkNames: string[];
 };
 ```
@@ -91,6 +111,7 @@ type SearchIndexEntry = {
   damageType?: string;
   rarity?: string;
   source?: string;
+  rpm?: number;
   perkNames: string[];
 };
 ```
@@ -130,4 +151,3 @@ type DataHealth = ManifestMeta & {
   sampleMappings: unknown[];
 };
 ```
-
